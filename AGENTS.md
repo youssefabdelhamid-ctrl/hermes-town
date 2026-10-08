@@ -21,6 +21,9 @@ Every visible resident action maps to a real lifecycle event. Ambient smoke, spa
 - Simulation code under `src/sim/` contains no Phaser imports.
 - Tool name to place and work style is centralized in `src/sim/toolMap.ts`.
 - The browser reads only the same-host Town snapshot and SSE endpoints.
+- Fleet mode adds a local collector for configured profile servers. Buddy
+  aliases are explicit display configuration, never inferred from Hermes
+  content. Only observed profiles receive persistent map avatars.
 - The native Hermes plugin uses documented hooks and publishes an allowlisted payload.
 
 ## Boundaries
@@ -36,6 +39,6 @@ Every visible resident action maps to a real lifecycle event. Ambient smoke, spa
 - Keep `src/main.ts` focused on boot and HUD wiring.
 - Keep server and plugin payloads allowlist-only.
 - Add a regression test before changing a privacy or lifecycle contract.
-- Run `npm run test:contracts`, `npm run build`, and `npm run verify:world` before release.
+- Run `npm run test:contracts`, `npm run build`, `npm run verify:world`, and `npm run verify:fleet` before release.
 - Validate the plugin with `hermes plugins doctor integrations/hermes-town-plugin --ci`.
 - Exercise demo and disconnected-live states in a real browser.

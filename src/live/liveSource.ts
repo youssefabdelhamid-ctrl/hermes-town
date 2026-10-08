@@ -13,7 +13,7 @@ const RETRY_MS = 2500;
 const STALL_AFTER_MS = 3500;
 const POLL_MS = 2000;
 
-export function createLiveSource(sink: EventSink): Source {
+export function createLiveSource(sink: EventSink, paths = { snapshot: SNAPSHOT_PATH, stream: STREAM_PATH }): Source {
   let status: SourceStatus = 'idle';
   let stream: EventSource | null = null;
   let cursor = 0;
@@ -59,7 +59,7 @@ export function createLiveSource(sink: EventSink): Source {
   const snapshot = async (incremental = false): Promise<boolean> => {
     try {
       const q = incremental && streamId !== null ? `?since=${cursor}&stream=${encodeURIComponent(streamId)}` : '';
-      const res = await fetch(SNAPSHOT_PATH + q, { cache: 'no-store' });
+      const res = await fetch(paths.snapshot + q, { cache: 'no-store' });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as Record<string, unknown>;
       adoptStream(body.streamId);
@@ -108,7 +108,7 @@ export function createLiveSource(sink: EventSink): Source {
   const open = (): void => {
     if (stopped) return;
     stream?.close();
-    const src = new EventSource(`${STREAM_PATH}?since=${cursor}`);
+    const src = new EventSource(`${paths.stream}?since=${cursor}`);
     stream = src;
     src.addEventListener('open', () => { if (disconnectTimer !== null) { window.clearTimeout(disconnectTimer); disconnectTimer = null; } status = 'connected'; lastFrameAt = Date.now(); startPollWatch(); });
     src.addEventListener('heartbeat', (e) => {

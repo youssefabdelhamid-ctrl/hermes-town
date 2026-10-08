@@ -28,6 +28,7 @@
       </div>
       <div id="controls">
         <button id="overview">Town view</button>
+        <button id="all-buddies" aria-pressed="false">All buddies</button>
         <button data-goto="library">Library</button>
         <button data-goto="workshop">Workshop</button>
         <button data-goto="forge">Forge</button>
@@ -38,7 +39,14 @@
         <button id="follow">Follow: off</button>
         <button id="director" class="on">Director: on</button>
       </div>
-      <div id="panel" hidden></div>
+      <div id="sidebar">
+        <details id="buddy-roster" open>
+          <summary>Buddies <span id="buddy-count">0</span></summary>
+          <p id="buddy-empty">Waiting for Hermes sessions.</p>
+          <div id="buddy-list"></div>
+        </details>
+        <div id="panel" hidden></div>
+      </div>
       <canvas id="minimap" width="192" height="120"></canvas>
       <div id="foot">drag to pan · scroll to zoom · click a resident</div>
     </div>

@@ -342,7 +342,7 @@ export function createTownState({ journalPath, limits = LIMITS, clock = nowSecon
      * whole journal projection. A stale cursor or replaced journal deliberately
      * receives the full retained snapshot instead.
      */
-    snapshot(since = null, expectedStreamId = null) {
+    snapshot(since = null, expectedStreamId = null, includeQuiet = false) {
       const retained = orderedEvents();
       const canIncrement = Number.isFinite(since)
         && expectedStreamId === streamId
@@ -355,6 +355,10 @@ export function createTownState({ journalPath, limits = LIMITS, clock = nowSecon
       let selected;
       if (canIncrement) {
         selected = retained.filter((event) => event.cursor > since);
+      } else if (includeQuiet) {
+        // Fleet viewers need retained evidence for quiet buddies, including
+        // session endings. This does not change the default live snapshot.
+        selected = retained;
       } else {
         // A fresh client is shown the town as it is now: residents that have
         // departed, and residents nothing has been heard from in a while, are

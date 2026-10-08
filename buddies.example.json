@@ -1,0 +1,6 @@
+{
+  "buddies": [
+    { "id": "nova", "name": "Nova", "url": "http://127.0.0.1:4187" },
+    { "id": "nia", "name": "Nia", "url": "http://127.0.0.1:4189" }
+  ]
+}

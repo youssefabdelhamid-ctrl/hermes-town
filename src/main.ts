@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { TILE, T } from './art/tiles';
 import { createDemoSource } from './live/demoSource';
-import { createLiveSource } from './live/liveSource';
+import { createFleetSource } from './live/fleetSource';
+import { createBuddyRoster } from './ui/buddyRoster';
 import type { Source } from './live/events';
 import { TownScene } from './scenes/TownScene';
 import { TownSim } from './sim/town';
@@ -19,7 +20,7 @@ const hour = hourParam !== null && Number.isFinite(Number(hourParam)) ? Number(h
 
 const map = buildTownMap();
 const sim = new TownSim(map);
-const source: Source = mode === 'demo' ? createDemoSource(sim) : createLiveSource(sim);
+const source: Source = mode === 'demo' ? createDemoSource(sim) : createFleetSource(sim);
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 const statusEl = $('#status');
@@ -27,6 +28,7 @@ const panel = $('#panel');
 const followBtn = $<HTMLButtonElement>('#follow');
 const directorBtn = $<HTMLButtonElement>('#director');
 const minimap = $<HTMLCanvasElement>('#minimap');
+const allBtn = $<HTMLButtonElement>('#all-buddies');
 
 let scene: TownScene | null = null;
 let selectedId: string | null = null;
@@ -65,6 +67,9 @@ for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-goto]')) {
   btn.addEventListener('click', () => scene?.goTo(btn.dataset.goto!));
 }
 $('#overview').addEventListener('click', () => { scene?.overview(); renderStatus(); });
+allBtn.addEventListener('click', () => { scene?.showAllBuddies(); renderStatus(); });
+const renderRoster = createBuddyRoster(sim, source, id => { scene?.select(id); renderPanel(); });
+let fleetOverviewStarted = false;
 directorBtn.addEventListener('click', () => {
   if (!scene) return;
   scene.setDirector(!scene.isDirector());
@@ -96,6 +101,9 @@ function renderPanel(): void {
   const place = r.place ? PLACE_LABEL[r.place] : r.state === 'leaving' ? 'going home' : r.state === 'waiting' ? 'at the front door' : r.state === 'posted' ? 'at its post' : r.state === 'returning' ? 'coming back' : 'on the road';
   const parent = r.parentId ? sim.residents.get(r.parentId) : null;
   const runnersOut = r.kind === 'session' ? sim.runners().filter((x) => x.parentId === r.id).length : 0;
+  const buddy = r.buddyId ? source.buddies?.().find(b => b.id === r.buddyId) : undefined;
+  const lastEvent = buddy ? buddy.lastEventAt === null ? 'unknown' : `${ago(Math.max(0, source.now() - buddy.lastEventAt))} ago`
+    : `${ago(sim.now() - r.lastEventAt)} ago`;
   const rows: [string, string][] = [
     ['state', r.state === 'waiting' ? 'waiting for you' : r.state === 'posted' ? 'on watch until the next run' : r.state],
     ['where', place],
@@ -103,9 +111,9 @@ function renderPanel(): void {
     ...(r.kind === 'runner' ? [['sent by', parent?.name ?? 'a session'] as [string, string]] : [['runners out', String(runnersOut)] as [string, string]]),
     ['home', r.home.label],
     ['in town', ago(sim.now() - r.spawnedAt)],
-    ['last event', `${ago(sim.now() - r.lastEventAt)} ago`],
+    ['last event', lastEvent],
   ];
-  const sub = r.kind === 'runner' ? `tool call · ${r.role}` : r.role === 'scheduled' ? `scheduled job · keeper` : `${r.title ?? (r.memory ? 'earlier today' : r.isChild ? 'subagent' : 'session')} · ${r.role}`;
+  const sub = r.kind === 'runner' ? `tool call · ${r.role}` : r.role === 'scheduled' ? `scheduled job · keeper` : `${r.buddyId ? 'profile buddy' : r.title ?? (r.memory ? 'earlier today' : r.isChild ? 'subagent' : 'session')} · ${r.role}`;
   panel.innerHTML = `
     <h3>${escapeHtml(r.name)}</h3>
     <div class="sub">${escapeHtml(sub)}</div>
@@ -118,6 +126,12 @@ function escapeHtml(s: string): string {
 }
 
 function renderStatus(): void {
+  const buddies = source.buddies?.() ?? [];
+  if (buddies.length && scene && !fleetOverviewStarted) { scene.showAllBuddies(); fleetOverviewStarted = true; }
+  allBtn.classList.toggle('on', scene?.isAllBuddies() ?? false);
+  allBtn.setAttribute('aria-pressed', String(scene?.isAllBuddies() ?? false));
+  directorBtn.textContent = `Director: ${scene?.isDirector() ? 'on' : 'off'}`;
+  directorBtn.classList.toggle('on', scene?.isDirector() ?? false);
   followBtn.textContent = `Follow: ${scene?.isFollowing() ? 'on' : 'off'}`;
   followBtn.classList.toggle('on', scene?.isFollowing() ?? false);
   const st = source.status();
@@ -149,6 +163,11 @@ function renderStatus(): void {
       if (o && o.stale + o.departed > 0) text += ` · ${o.stale + o.departed} past sessions not shown`;
     }
     if (st === 'disconnected') text += ' · run hermes town start on the Hermes host';
+    if (buddies.length) {
+      const connected = buddies.filter(b => b.connection === 'connected').length;
+      text = `${connected}/${buddies.length} buddy servers connected · ${buddies.filter(b => b.activity === 'working' && b.connection === 'connected').length} working`
+        + ` · ${buddies.filter(b => b.connection === 'disconnected').length} disconnected`;
+    }
   }
   statusEl.textContent = text;
   const verified = (source.bridge?.()?.receivedEvents ?? 0) > 0;
@@ -206,7 +225,7 @@ minimap.addEventListener('click', (e) => {
   scene?.centerOn(x, y);
 });
 
-window.setInterval(() => { renderStatus(); renderPanel(); }, 500);
+window.setInterval(() => { renderRoster(); renderStatus(); renderPanel(); }, 500);
 const loop = (): void => { renderMinimap(); requestAnimationFrame(loop); };
 requestAnimationFrame(loop);
 

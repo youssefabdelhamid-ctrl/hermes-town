@@ -22,7 +22,24 @@ html, body { margin: 0; height: 100%; background: #14111a; overflow: hidden; fon
 #controls button { font: inherit; font-size: 11px; background: #2a2230; color: #e9dfc8; border: 1px solid #5a4838; padding: 5px 9px; border-radius: 4px; cursor: pointer; }
 #controls button:hover { background: #3a2f40; }
 #controls button.on { background: #7a4a2a; border-color: #c98a4a; }
-#panel { position: absolute; right: 16px; top: 14px; width: 250px; background: rgba(20,17,26,.9); border: 1px solid #4a3b33; padding: 12px 14px; border-radius: 6px; font-size: 12px; }
+#sidebar { position: absolute; right: 16px; top: 14px; width: 280px; max-height: calc(100vh - 130px); display: flex; flex-direction: column; gap: 8px; }
+#buddy-roster { background: rgba(20,17,26,.92); border: 1px solid #4a3b33; border-radius: 6px; padding: 10px; min-height: 0; overflow: auto; }
+#buddy-roster summary { cursor: pointer; font-size: 13px; color: #f3e6c9; }
+#buddy-count { float: right; color: #f0c27a; }
+#buddy-empty { font-size: 11px; line-height: 1.6; color: #a8917a; }
+#buddy-list { margin-top: 8px; display: grid; gap: 6px; }
+.buddy-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; background: #29212d; color: #e9dfc8; border: 1px solid #4a3b33; border-radius: 5px; padding: 5px; cursor: pointer; }
+.buddy-row:hover, .buddy-row:focus-visible { background: #3a2f40; border-color: #c98a4a; }
+.buddy-row:disabled { cursor: default; opacity: .75; }
+.buddy-portrait { width: 36px; height: 48px; image-rendering: pixelated; flex: 0 0 auto; }
+.buddy-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.buddy-info strong { font-size: 12px; overflow-wrap: anywhere; }
+.buddy-status { font-size: 11px; color: #c9b58f; }
+.buddy-detail { font-size: 10px; color: #a8917a; line-height: 1.4; }
+.buddy-row[data-state="working"] .buddy-status { color: #9fd08a; }
+.buddy-row[data-state="waiting"] .buddy-status { color: #f0c27a; }
+.buddy-row[data-state="failed"] .buddy-status, .buddy-row[data-state="disconnected"] .buddy-status { color: #e08a6a; }
+#panel { background: rgba(20,17,26,.9); border: 1px solid #4a3b33; padding: 12px 14px; border-radius: 6px; font-size: 12px; overflow: auto; flex: 0 1 auto; }
 #panel h3 { margin: 0 0 2px; font-size: 15px; color: #f3e6c9; }
 #panel .sub { color: #a8917a; margin-bottom: 8px; }
 #panel .row { display: flex; justify-content: space-between; padding: 2px 0; border-top: 1px solid #2f2632; }
@@ -33,13 +50,19 @@ html, body { margin: 0; height: 100%; background: #14111a; overflow: hidden; fon
 #minimap { position: absolute; right: 16px; bottom: 16px; width: 128px; height: 80px; border: 1px solid #4a3b33; background: #1a1620; image-rendering: pixelated; cursor: pointer; opacity: .85; }
 #foot { position: absolute; left: 16px; bottom: 62px; padding: 4px 7px; border-radius: 4px; background: rgba(20,17,26,.76); font-size: 10px; color: #d6c4a5; }
 @media (max-width: 1000px) {
+  #masthead { max-width: calc(100vw - 350px); }
   #controls { max-width: calc(100% - 180px); flex-wrap: wrap; justify-content: center; }
   #foot { display: none; }
 }
 @media (max-width: 640px) {
+  #masthead { max-width: none; }
   #masthead { left: 8px; top: 8px; right: 8px; padding: 8px 10px; }
   #controls { left: 8px; right: 8px; bottom: 8px; transform: none; max-width: none; gap: 4px; }
   #controls button { padding: 6px; }
   #minimap { bottom: 98px; right: 8px; width: 96px; height: 60px; }
-  #panel { top: 95px; right: 8px; }
+  #sidebar { top: auto; left: 8px; right: 8px; bottom: 150px; width: auto; max-height: 32vh; }
+  #buddy-roster { max-height: 25vh; }
+  #buddy-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .buddy-portrait { width: 24px; height: 32px; }
+  #panel { max-height: 130px; }
 }

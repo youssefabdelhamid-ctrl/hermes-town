@@ -60,6 +60,7 @@ jobs:
       - run: npm run verify:characters
       - run: npm run verify:world
       - run: npm run build
+      - run: npm run verify:fleet
       - run: npm run verify:onboarding
       - uses: actions/upload-artifact@v4
         if: always()
