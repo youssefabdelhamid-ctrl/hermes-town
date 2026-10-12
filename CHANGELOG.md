@@ -2,6 +2,18 @@
 
 All notable changes to Hermes Town are documented here.
 
+## Unreleased
+
+- Added a loopback fleet collector and explicit local buddy configuration for
+  viewing multiple Hermes profiles in one town, with independent event cursors
+  and reconnect handling.
+- Added persistent, observed profile avatars, a roster with per-buddy activity
+  and last-event age, and retained quiet-session snapshots for fleet viewers.
+- Added All buddies camera mode with automatic framing around residents and
+  responsive space for the roster and controls.
+- Added real HTTP/SSE and browser checks for identity stability, overlapping
+  source keys, quiet retention, independent restarts, and desktop/mobile framing.
+
 ## 0.2.0 - 2026-09-17
 
 ### Live bridge

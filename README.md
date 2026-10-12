@@ -69,6 +69,58 @@ State stays under that profile's Hermes home. Multiple profiles on one host need
 
 Run Town **on the Hermes host**. On a remote host, the printed loopback address is remote too. Use a private SSH forward to view it locally; never expose the unauthenticated live snapshot/SSE routes through a public tunnel. Browser opening is opt-in and explains when no graphical session is available.
 
+### See all your buddies together
+
+Run one Town server per Hermes profile on distinct ports, then run the local
+fleet collector. For example, use ports `4187` and `4189` for two profiles and
+keep `4188` free for the combined view. Set each profile's matching
+`HERMES_TOWN_BRIDGE_URL` as described above. Use this version of Town for every
+profile so quiet-session snapshots are supported.
+
+Copy `buddies.example.json` to `buddies.json` and set each buddy's stable `id`,
+friendly `name`, and Town server `url`. These names are an explicit local
+display setting; the collector does not discover names from Hermes messages
+or configuration. `buddies.json` is ignored by git. For example:
+
+```json
+{
+  "buddies": [
+    { "id": "nova", "name": "Nova", "url": "http://127.0.0.1:4187" },
+    { "id": "nia", "name": "Nia", "url": "http://127.0.0.1:4189" }
+  ]
+}
+```
+
+```bash
+npm ci
+npm run build
+npm run serve:fleet -- --config buddies.json
+```
+
+Open `http://127.0.0.1:4188/`. In a packaged plugin, the equivalent foreground
+command is `node /path/to/hermes-town/runtime/server/serve-fleet.mjs --config
+/path/to/buddies.json`. The collector needs no bridge token and does not
+start, stop, or restart Hermes profiles. Remote profiles can use distinct
+local ports provided by private SSH forwards.
+
+Every configured buddy remains in the roster, showing its own connection,
+last event, and observed session count. Until the first main-session event,
+its card says **awaiting first session** and there is no map resident. After
+that event, one stable avatar represents the profile's most recently active
+main session; concurrent main sessions share that avatar and are counted in
+its card. Subagents and scheduled jobs retain separate residents. Avatars
+keep the same appearance and home across new main sessions and remain visible
+at home when quiet. Retained upstream history restores them after a page
+reload; a replaced or pruned upstream journal can leave an unobserved buddy
+awaiting a session again. Quiet and disconnected states never claim success
+or infer that Hermes has ended a session.
+
+The fleet opens in **All buddies** mode. The camera keeps residents inside
+the space available beside the roster and adapts as they move or the window
+resizes. Dragging, zooming, following, or focusing a building switches to
+manual view; click **All buddies** to resume. The roster also works for normal
+single-profile and explicitly labeled demo towns.
+
 ### What "connected" means
 
 - **Local setup ready:** `hermes town status` checks the packaged files, Node.js, and private token.
@@ -141,6 +193,7 @@ registry and the common Claude Code names. Unknown tools go to the market.
 - Click a resident to inspect it.
 - Use the bottom buttons to focus a building.
 - Toggle Follow to track the selected resident.
+- Click All buddies to keep everyone in view, or a roster card to highlight a buddy.
 - Click the minimap to jump.
 
 ## Project layout
@@ -167,6 +220,7 @@ npm run test:onboarding
 npx playwright install chromium
 npm run verify:characters
 npm run verify:world
+npm run verify:fleet
 npm run verify:onboarding
 hermes plugins doctor integrations/hermes-town-plugin --ci
 ```

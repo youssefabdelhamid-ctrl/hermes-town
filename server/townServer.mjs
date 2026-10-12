@@ -37,7 +37,7 @@ export function isLoopbackHost(host) {
   return typeof host === 'string' && LOOPBACK_HOSTS.has(host.trim().toLowerCase());
 }
 
-const SECURITY_HEADERS = Object.freeze({
+export const SECURITY_HEADERS = Object.freeze({
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
@@ -284,7 +284,7 @@ export function createTownServer({ token, journalPath, staticRoot = null, heartb
     const requested = Number(url.searchParams.get('since') ?? NaN);
     const since = Number.isFinite(requested) && requested >= 0 ? Math.floor(requested) : null;
     const expectedStreamId = url.searchParams.get('stream');
-    sendJson(res, 200, { ...state.snapshot(since, expectedStreamId), bridge: bridgeStatus() });
+    sendJson(res, 200, { ...state.snapshot(since, expectedStreamId, url.searchParams.get('residents') === 'all'), bridge: bridgeStatus() });
   }
 
   function handleHealth(req, res) {

@@ -82,6 +82,16 @@ export interface EventSink {
 
 export type SourceStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
+export interface BuddyStatus {
+  id: string;
+  name: string;
+  connection: SourceStatus;
+  activity: 'unknown' | 'working' | 'waiting' | 'quiet' | 'failed';
+  lastEventAt: number | null;
+  residentId: string | null;
+  sessions: number;
+}
+
 export interface Source {
   readonly label: string;
   start(): void;
@@ -93,4 +103,5 @@ export interface Source {
   omitted?(): { departed: number; stale: number };
   /** Accepted ingress this server boot, never inferred from residents or replay. */
   bridge?(): { receivedEvents: number; lastEventAt: number | null } | null;
+  buddies?(): BuddyStatus[];
 }

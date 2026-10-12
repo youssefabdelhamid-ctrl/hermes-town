@@ -11,6 +11,13 @@ Hermes Town is a spatial interface for persistent AI agents. Residents, building
 - Thinking, waiting, completion, failure, and departure are visually distinct.
 - An empty runtime produces an empty town with an explicit disconnected or waiting state.
 - Demo activity is always labeled as demo activity.
+- A configured buddy is a real Hermes profile. Its roster card exists before
+  observation, with unknown activity; its map avatar appears only after an
+  observed main-session event. In fleet mode, one stable avatar represents
+  that profile's latest active main session and the roster counts concurrent
+  main sessions. Subagents and scheduled jobs remain separate contexts.
+- Quiet buddy avatars stay at home; each roster card reports its source
+  connection and last event without inventing runtime health or task success.
 
 ## Work vocabulary
 

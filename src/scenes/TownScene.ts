@@ -13,7 +13,7 @@ import type { Resident, TownSim } from '../sim/town';
 import type { Place } from '../sim/toolMap';
 import { MAP_H, MAP_W, type Building, type PropKind, type TownMap } from '../world/map';
 
-const ZOOMS = [1, 1.5, 2, 3, 4, 5];
+const ZOOMS = [0.35, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5];
 
 interface ResidentView {
   sprite: Phaser.GameObjects.Sprite;
@@ -58,6 +58,7 @@ export class TownScene extends Phaser.Scene {
   private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
   private selected: string | null = null;
   private following = false;
+  private allBuddies = false;
   /** The director picks the camera when there is little happening and nobody has touched it. */
   private director = true;
   private directorTarget: string | null = null;
@@ -262,6 +263,7 @@ export class TownScene extends Phaser.Scene {
       const dx = p.x - this.dragStart.x, dy = p.y - this.dragStart.y;
       if (Math.hypot(dx, dy) > 3) this.dragMoved = true;
       if (this.dragMoved) {
+        this.leaveAllBuddies();
         this.userMoved = true;
         this.userTouchedAt = this.sceneClock;
         if (this.following) this.setFollow(false);
@@ -280,6 +282,7 @@ export class TownScene extends Phaser.Scene {
       this.select(best);
     });
     this.input.on('wheel', (_p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      this.leaveAllBuddies();
       this.userMoved = true;
       this.setFollow(false);
       const next = dy < 0 ? ZOOMS.find(z => z > cam.zoom + 0.01) ?? ZOOMS[ZOOMS.length - 1]! : [...ZOOMS].reverse().find(z => z < cam.zoom - 0.01) ?? ZOOMS[0]!;
@@ -290,11 +293,13 @@ export class TownScene extends Phaser.Scene {
   }
 
   private recenter(): void {
+    if (this.allBuddies) { this.fitBuddies(); return; }
     if (this.userMoved) return;
     this.overview();
   }
 
   overview(): void {
+    this.leaveAllBuddies();
     this.setFollow(false);
     this.select(null);
     this.userMoved = false;
@@ -308,6 +313,52 @@ export class TownScene extends Phaser.Scene {
     cam.centerOn(52 * TILE, 40 * TILE);
   }
 
+  showAllBuddies(): void {
+    this.setFollow(false);
+    this.setDirector(false);
+    this.allBuddies = true;
+    this.userMoved = false;
+    const cam = this.cameras.main;
+    // A phone's full canvas may be taller than the map at overview zoom.
+    // Permit letterboxing so map bounds cannot force avatars under the HUD.
+    cam.useBounds = false;
+    this.tweens.killTweensOf(cam); cam.panEffect.reset();
+    this.fitBuddies();
+  }
+
+  isAllBuddies(): boolean { return this.allBuddies; }
+
+  private leaveAllBuddies(): void {
+    this.allBuddies = false;
+    this.cameras.main.useBounds = true;
+  }
+
+  private fitBuddies(): void {
+    const cam = this.cameras.main;
+    const residents = [...this.opts.sim.residents.values()].filter(r => r.state !== 'gone');
+    let left = 25 * TILE, right = 79 * TILE, top = 22 * TILE, bottom = 58 * TILE;
+    if (residents.length) {
+      left = Math.min(...residents.map(r => r.x)) - 48;
+      right = Math.max(...residents.map(r => r.x)) + 48;
+      top = Math.min(...residents.map(r => r.y)) - 64;
+      bottom = Math.max(...residents.map(r => r.y)) + 48;
+    }
+    // Fit into the space left by the HUD, so a visible resident also remains
+    // readable behind neither the roster nor the controls on a narrow phone.
+    const mast = document.querySelector('#masthead')?.getBoundingClientRect();
+    const sidebar = document.querySelector('#sidebar')?.getBoundingClientRect();
+    const controls = document.querySelector('#controls')?.getBoundingClientRect();
+    const x = 16, y = Math.min(cam.height * 0.35, (mast?.bottom ?? 0) + 16);
+    const endX = cam.width > 640 && sidebar && sidebar.height > 0 ? sidebar.left - 16 : cam.width - 16;
+    let endY = (controls?.top ?? cam.height) - 16;
+    if (cam.width <= 640 && sidebar && sidebar.height > 0) endY = Math.min(endY, sidebar.top - 16);
+    const width = Math.max(120, endX - x), height = Math.max(120, endY - y);
+    const zoom = Math.min(2.5, width / Math.max(320, right - left), height / Math.max(240, bottom - top));
+    cam.setZoom(zoom);
+    cam.centerOn((left + right) / 2 + (cam.width / 2 - (x + width / 2)) / zoom,
+      (top + bottom) / 2 + (cam.height / 2 - (y + height / 2)) / zoom);
+  }
+
   select(id: string | null): void {
     this.selected = id;
     this.opts.onSelect(id);
@@ -317,6 +368,7 @@ export class TownScene extends Phaser.Scene {
   selectedId(): string | null { return this.selected; }
 
   setDirector(on: boolean): void {
+    if (on) this.leaveAllBuddies();
     this.director = on;
     if (!on) { this.directorTarget = null; if (!this.following) this.cameras.main.stopFollow(); }
   }
@@ -331,7 +383,7 @@ export class TownScene extends Phaser.Scene {
    */
   private direct(): void {
     const sim = this.opts.sim;
-    if (!this.director || this.following) return;
+    if (!this.director || this.following || this.allBuddies) return;
     if (this.sceneClock - this.userTouchedAt < 45) return;
     if (sim.active().length > 3) { if (this.directorTarget) { this.directorTarget = null; this.cameras.main.stopFollow(); } return; }
     const pick = sim.mostRecent();
@@ -352,6 +404,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   setFollow(on: boolean): void {
+    if (on) this.leaveAllBuddies();
     const cam = this.cameras.main;
     if (on) this.userMoved = true;
     this.directorTarget = null;
@@ -367,6 +420,7 @@ export class TownScene extends Phaser.Scene {
   goTo(place: Place | string): void {
     const b = this.opts.map.buildings.find((x) => x.id === place);
     if (!b) return;
+    this.leaveAllBuddies();
     this.userMoved = true;
     this.userTouchedAt = this.sceneClock;
     this.directorTarget = null;
@@ -377,6 +431,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   centerOn(x: number, y: number): void {
+    this.leaveAllBuddies();
     this.userMoved = true;
     this.userTouchedAt = this.sceneClock;
     this.directorTarget = null;
@@ -394,6 +449,7 @@ export class TownScene extends Phaser.Scene {
     const { sim } = this.opts;
     sim.update(dt);
     this.sceneClock += dt;
+    if (this.allBuddies) this.fitBuddies();
 
     const seen = new Set<string>();
     const view = this.cameras.main.worldView;

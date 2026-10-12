@@ -122,6 +122,28 @@ A disconnected live page stays empty and says `disconnected`. It never substitut
 
 ## What a fresh client sees
 
+The optional fleet collector serves a roster at `GET /api/town/fleet` and
+read-only, same-origin per-profile snapshots and SSE at
+`/api/town/fleet/<buddy-id>/snapshot` and `/api/town/fleet/<buddy-id>/events`.
+Its local JSON configuration accepts only `id`, `name`, and a loopback HTTP
+origin per buddy (up to 64). Names are operator-supplied display aliases;
+upstream URLs, credentials, and paths are never published. Upstream redirects
+are refused. Responses are bounded and rebuilt from validated public event
+fields rather than forwarding arbitrary upstream text. The collector keeps
+the existing security headers, loopback-only binding, and no CORS headers.
+
+Fleet snapshots request `residents=all` from each profile server. This includes
+all retained session evidence, including quiet and departed main sessions,
+without changing retention bounds or the normal snapshot below. It neither
+creates lifecycle events nor increments bridge-delivery counters. The browser
+namespaces subagent/cron identities per buddy and maps main sessions to a
+stable profile avatar, so identical source keys cannot collide. Cursors and
+stream identities remain independent per profile; a restarted profile clears
+only its own helpers and resets its roster activity to unknown. Configured
+roster entries survive disconnections. Persistent avatars are created only
+from actual main-session events and survive quiet-time display retirement.
+An empty fleet has configured cards with unknown activity and no map avatars.
+
 A full snapshot describes the town as it is now, not the journal's history.
 The server leaves out residents that have departed and residents nothing has
 been heard from for fifteen minutes (`LIMITS.staleSeconds`); their journal

@@ -13,7 +13,12 @@ const RETRY_MS = 2500;
 const STALL_AFTER_MS = 3500;
 const POLL_MS = 2000;
 
-export function createLiveSource(sink: EventSink): Source {
+/**
+ * `poll: true` skips SSE and follows incremental snapshots instead. The fleet
+ * view needs this: browsers cap HTTP/1.1 at six connections per origin, so one
+ * EventSource per buddy starves every buddy after the sixth.
+ */
+export function createLiveSource(sink: EventSink, paths: { snapshot: string; stream: string; poll?: boolean } = { snapshot: SNAPSHOT_PATH, stream: STREAM_PATH }): Source {
   let status: SourceStatus = 'idle';
   let stream: EventSource | null = null;
   let cursor = 0;
@@ -59,7 +64,7 @@ export function createLiveSource(sink: EventSink): Source {
   const snapshot = async (incremental = false): Promise<boolean> => {
     try {
       const q = incremental && streamId !== null ? `?since=${cursor}&stream=${encodeURIComponent(streamId)}` : '';
-      const res = await fetch(SNAPSHOT_PATH + q, { cache: 'no-store' });
+      const res = await fetch(paths.snapshot + q, { cache: 'no-store' });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as Record<string, unknown>;
       adoptStream(body.streamId);
@@ -108,7 +113,7 @@ export function createLiveSource(sink: EventSink): Source {
   const open = (): void => {
     if (stopped) return;
     stream?.close();
-    const src = new EventSource(`${STREAM_PATH}?since=${cursor}`);
+    const src = new EventSource(`${paths.stream}?since=${cursor}`);
     stream = src;
     src.addEventListener('open', () => { if (disconnectTimer !== null) { window.clearTimeout(disconnectTimer); disconnectTimer = null; } status = 'connected'; lastFrameAt = Date.now(); startPollWatch(); });
     src.addEventListener('heartbeat', (e) => {
@@ -154,7 +159,23 @@ export function createLiveSource(sink: EventSink): Source {
       retryTimer = window.setTimeout(() => { retryTimer = null; void boot(); }, RETRY_MS);
       return;
     }
+    if (paths.poll) { followByPolling(); return; }
     open();
+  };
+
+  const followByPolling = (): void => {
+    status = 'connected';
+    if (pollTimer !== null) return;
+    let failures = 0;
+    pollTimer = window.setInterval(() => {
+      if (stopped || polling) return;
+      polling = true;
+      void snapshot(true).then((ok) => {
+        if (stopped) return;
+        failures = ok ? 0 : failures + 1;
+        status = ok ? 'connected' : failures * POLL_MS >= DISCONNECT_AFTER_MS ? 'disconnected' : 'reconnecting';
+      }).finally(() => { polling = false; });
+    }, POLL_MS);
   };
 
   return {

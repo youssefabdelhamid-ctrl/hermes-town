@@ -58,6 +58,9 @@ export interface Intent {
 
 export interface Resident {
   id: string;
+  /** A configured profile whose observed avatar survives quiet periods. */
+  buddyId: string | null;
+  persistent: boolean;
   kind: ResidentKind;
   /** The session a runner belongs to. */
   parentId: string | null;
@@ -189,6 +192,48 @@ export class TownSim {
     this.porches.clear();
   }
 
+  pushBuddy(buddyId: string, name: string, event: TownEvent, seq: number): void {
+    const id = `buddy/${buddyId}`;
+    // Configuration alone never fabricates runtime activity or a resident.
+    if (!this.residents.has(id) && event.type === 'agent.departed') return;
+    const previous = this.residents.get(id);
+    if (previous?.state === 'leaving' && event.type !== 'agent.departed') {
+      previous.queue.length = 0; previous.intent = null;
+      this.wake(previous);
+    }
+    this.push({ ...event, agentId: id, displayName: name, seq });
+    const resident = this.residents.get(id);
+    if (resident) { resident.buddyId = buddyId; resident.persistent = true; resident.name = name; }
+  }
+
+  /** Forget only a restarted profile's helpers, retaining its known avatar. */
+  resetBuddy(buddyId: string): void {
+    for (const r of this.residents.values()) {
+      if (r.id === `buddy/${buddyId}`) {
+        r.queue.length = 0; r.intent = null; r.reaction = null;
+        this.leaveStation(r); this.goHome(r);
+      } else if (r.id.startsWith(`fleet/${buddyId}/`) || r.parentId === `buddy/${buddyId}`) {
+        this.leaveStation(r);
+        if (r.porch) this.porches.delete(`${r.porch.x},${r.porch.y}`);
+        if (r.post) {
+          const post = `${r.post.x},${r.post.y}`;
+          this.postsTaken.set(post, Math.max(0, (this.postsTaken.get(post) ?? 1) - 1));
+        }
+        this.residents.delete(r.id);
+      }
+    }
+  }
+
+  settleBuddy(buddyId: string, quiet = false): void {
+    const buddy = this.residents.get(`buddy/${buddyId}`);
+    if (quiet && buddy) {
+      for (const r of this.runnersOf(buddy)) r.done = true;
+      buddy.queue.length = 0; buddy.intent = null; buddy.reaction = null;
+      this.leaveStation(buddy); this.goHome(buddy);
+    }
+    this.settle(r => r.id === `buddy/${buddyId}` || r.id.startsWith(`buddy/${buddyId}#`) || r.id.startsWith(`fleet/${buddyId}/`));
+  }
+
   /** Sessions and subagents that still represent a live execution context. */
   active(): Resident[] {
     return [...this.residents.values()].filter((r) => r.kind === 'session' && !r.memory && r.state !== 'resting' && r.state !== 'gone' && r.state !== 'posted');
@@ -216,8 +261,9 @@ export class TownSim {
    * After a snapshot replay: everyone the snapshot described was already in
    * town, so nobody walks in from the gate.
    */
-  settle(): void {
+  settle(matches: (r: Resident) => boolean = () => true): void {
     for (const r of this.residents.values()) {
+      if (!matches(r)) continue;
       if (r.state === 'arriving') {
         const next = r.queue.shift();
         if (next) this.startIntent(r, next);
@@ -229,7 +275,11 @@ export class TownSim {
       }
       r.history = r.history.filter((h) => h.text !== 'arrived in town' && h.text !== 'arrived to help');
     }
-    this.log.length = 0;
+    // Settling one profile must preserve the others' visible event history.
+    for (let i = this.log.length - 1; i >= 0; i--) {
+      const resident = this.residents.get(this.log[i]!.residentId);
+      if (resident && matches(resident)) this.log.splice(i, 1);
+    }
   }
 
   /** Sessions from earlier today, shown sitting on their porches. */
@@ -345,7 +395,7 @@ export class TownSim {
     const home = this.map.homes[hashString(parentId ?? id) % this.map.homes.length]!;
     const pos = tileCenter(this.map.entrance);
     return {
-      id, kind, parentId, name, role, title: null, home, isChild, memory: false, post: null,
+      id, buddyId: null, persistent: false, kind, parentId, name, role, title: null, home, isChild, memory: false, post: null,
       x: pos.x, y: pos.y, facing: 'up', anim: 'stand', style: 'desk', state: 'arriving',
       porch: null, place: null, station: null, intent: null, queue: [], path: [], pathIndex: 0,
       hold: 0, quiet: 0, done: false, failed: false, bubble: null, emote: null, emoteUntil: 0,
@@ -580,6 +630,15 @@ export class TownSim {
         r.bubble = null;
         return;
       }
+      if (r.persistent) {
+        // Shared homes may have full porches. Keep a real buddy visible by
+        // its door rather than losing it because decorative seats ran out.
+        const point = nearestWalkable(this.map.grid, r.home.door) ?? r.home.door;
+        const c = tileCenter(point);
+        r.x = c.x; r.y = c.y; r.state = 'resting'; r.anim = 'sit';
+        r.facing = 'down'; r.bubble = null; r.hold = REST_SECONDS;
+        return;
+      }
       r.state = 'gone';
       r.hold = GONE_AFTER_SECONDS;
       r.facing = 'up';
@@ -709,7 +768,7 @@ export class TownSim {
           this.step(r, dt);
           break;
         case 'resting': {
-          r.hold -= dt;
+          if (!r.persistent) r.hold -= dt;
           r.quiet += dt;
           if (r.quiet > 20 && Math.random() < dt * 0.03) { this.setEmote(r, 'zzz', 3); r.quiet = 0; }
           if (r.hold <= 0) {
