@@ -69,7 +69,7 @@ export function createFleetSource(sim: TownSim): Source {
           settle() {
             sim.settleBuddy(buddy.id, buddy.lastEventAt !== null && buddy.source.now() - buddy.lastEventAt > 600);
           },
-        }, { snapshot: `${prefix}/snapshot`, stream: `${prefix}/events` });
+        }, { snapshot: `${prefix}/snapshot`, stream: `${prefix}/events`, poll: true });
         buddies.push(buddy);
         buddy.source.start();
       }

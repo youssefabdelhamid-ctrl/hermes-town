@@ -13,7 +13,12 @@ const RETRY_MS = 2500;
 const STALL_AFTER_MS = 3500;
 const POLL_MS = 2000;
 
-export function createLiveSource(sink: EventSink, paths = { snapshot: SNAPSHOT_PATH, stream: STREAM_PATH }): Source {
+/**
+ * `poll: true` skips SSE and follows incremental snapshots instead. The fleet
+ * view needs this: browsers cap HTTP/1.1 at six connections per origin, so one
+ * EventSource per buddy starves every buddy after the sixth.
+ */
+export function createLiveSource(sink: EventSink, paths: { snapshot: string; stream: string; poll?: boolean } = { snapshot: SNAPSHOT_PATH, stream: STREAM_PATH }): Source {
   let status: SourceStatus = 'idle';
   let stream: EventSource | null = null;
   let cursor = 0;
@@ -154,7 +159,23 @@ export function createLiveSource(sink: EventSink, paths = { snapshot: SNAPSHOT_P
       retryTimer = window.setTimeout(() => { retryTimer = null; void boot(); }, RETRY_MS);
       return;
     }
+    if (paths.poll) { followByPolling(); return; }
     open();
+  };
+
+  const followByPolling = (): void => {
+    status = 'connected';
+    if (pollTimer !== null) return;
+    let failures = 0;
+    pollTimer = window.setInterval(() => {
+      if (stopped || polling) return;
+      polling = true;
+      void snapshot(true).then((ok) => {
+        if (stopped) return;
+        failures = ok ? 0 : failures + 1;
+        status = ok ? 'connected' : failures * POLL_MS >= DISCONNECT_AFTER_MS ? 'disconnected' : 'reconnecting';
+      }).finally(() => { polling = false; });
+    }, POLL_MS);
   };
 
   return {
